@@ -71,14 +71,16 @@ ipcMain.handle('show-save-dialog', async (event) => {
   }
 });
 
-ipcMain.handle('save-file', async (event, path, directory) => {
+ipcMain.handle('save-file', async (event, pathh, directory) => {
   try {
-    const outputPath = `${directory}`;
-    console.log(outputPath)
-    await fs.promises.writeFile(outputPath, await fs.promises.readFile(path));
+    const fileData = await fs.promises.readFile(pathh);
+    const filePath = directory;
+    console.log(pathh)
+    console.log(directory)
+    await fs.promises.writeFile(filePath, fileData);
     return true;
   } catch (error) {
-    console.error(`Error saving file ${path}: ${error.message}`);
+    console.error(`Error saving file ${pathh}: ${error.message}`);
     return false;
   }
 });
