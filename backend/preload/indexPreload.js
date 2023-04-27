@@ -29,5 +29,14 @@ contextBridge.exposeInMainWorld('api', {
       console.error(e);
       return false;
     }
+  },
+  downloadFiles: async (filePaths, outputDir) => {
+    try {
+      const result = await ipcRenderer.invoke('download-files', filePaths, outputDir);
+      return result;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
   }
 });

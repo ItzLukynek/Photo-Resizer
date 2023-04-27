@@ -1,8 +1,8 @@
 const fileInput = document.getElementById('fileInput');
 const sizeInput = document.getElementById('sizeInput');
-const qualityInput = document.getElementById('qualityInput');
 const resizeButton = document.getElementById('resizeButton');
 const resultContainer = document.getElementById('resultContainer');
+const downloadAllButton = document.getElementById('downloadAllButton');
 
 fileInput.addEventListener('change', () => {
   if (fileInput.files.length > 0) {
@@ -11,6 +11,7 @@ fileInput.addEventListener('change', () => {
     resizeButton.disabled = true;
   }
 });
+let resizedImages;
 
 resizeButton.addEventListener('click', async () => {
   resizeButton.disabled = true;
@@ -20,46 +21,21 @@ resizeButton.addEventListener('click', async () => {
   const quality = 100;
   const size = Number(sizeInput.value);
 
-  let resizedImages;
+  
   resizedImages = await window.api.resizeImages(images, size, quality);
 
   if (resizedImages) {
-    const downloadAllButton = document.createElement('button');
-    downloadAllButton.textContent = 'Download All Resized Images';
-    downloadAllButton.addEventListener('click', async () => {
-      const { dialog } = window.api;
-
-      // Generate a single save dialog for the user to choose the output directory
-      const result = await window.api.showSaveDialog({
-        properties: ['openDirectory']
-      });
-
-      if (!result.canceled) {
-        const outputDir = result;
-        console.log(result)
-
-        for (const resizedImage of resizedImages) {
-          const { filename, outputPath } = resizedImage;
-
-          try {
-            await window.api.saveFile(outputPath, outputDir);
-          } catch (error) {
-            console.error(`Error saving file ${outputPath}: ${error.message}`);
-          }
-        }
-      }
-    });
-    resultContainer.appendChild(downloadAllButton);
+    downloadAllButton.disabled = false;
 
     for (const resizedImage of resizedImages) {
-      const { filename, outputPath } = resizedImage;
+      const { filename, filepath } = resizedImage;
 
       const a = document.createElement('a');
-      a.href = `file://${outputPath}`;
+      a.href = filepath;
       a.download = filename;
 
       const imgElement = document.createElement('img');
-      imgElement.src = `file://${outputPath}`;
+      imgElement.src = filepath;
 
       const filenameElement = document.createElement('div');
       filenameElement.textContent = filename;
@@ -75,4 +51,27 @@ resizeButton.addEventListener('click', async () => {
   }
 
   resizeButton.disabled = false;
+});
+
+downloadAllButton.addEventListener('click', async () => {
+  downloadAllButton.disabled = true;
+
+  try {
+    const result = await window.api.showSaveDialog({ properties: ['openDirectory'] });
+
+    if (!result.canceled) {
+      const outputDir = result.filePaths[0];
+
+      const filenames = resizedImages.map((image) => image.filename);
+
+      for (const filename of filenames) {
+        const path = `public/resizedImages/${filename}`;
+        await window.api.saveFile(path, outputDir);
+      }
+    }
+  } catch (error) {
+    console.error(`Error saving files: ${error.message}`);
+  }
+
+  downloadAllButton.disabled = false;
 });

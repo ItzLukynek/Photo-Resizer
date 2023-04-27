@@ -31,56 +31,72 @@ app.whenReady().then(() => {
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit()
 })
-
+const resizedImages = [];
 ipcMain.handle('resize-images', async (event, images, size, quality) => {
-  const promises = images.map(async (image) => {
     try {
-      const imageBuffer = await sharp(image)
-        .resize({ width: size })
-        .jpeg({ quality })
-        .toBuffer();
-
-      const outputPath = path.join(
-        path.dirname(image),
-        path.parse(image).name + '_resized.jpg'
-      );
-
-      fs.writeFileSync(outputPath, imageBuffer);
-
-      return { filename: path.basename(image), outputPath };
-    } catch (e) {
-      console.error(e);
+      
+  
+      for (const imagePath of images) {
+        const image = sharp(imagePath);
+        const metadata = await image.metadata();
+        const width = Math.min(size, metadata.width);
+  
+        const { dir, name, ext } = path.parse(imagePath);
+        const resizedImagePath = path.join(__dirname, 'public', 'resizedImages',name + ext);
+  
+        await image.resize({ width }).jpeg({ quality }).toFile(resizedImagePath);
+  
+        resizedImages.push({
+          filename: name + ext,
+          filepath: resizedImagePath,
+        });
+      }
+  
+      return resizedImages;
+    } catch (error) {
+      console.error(`Error resizing images: ${error.message}`);
       return null;
     }
   });
-
-  const resizedImages = await Promise.all(promises);
-
-  return resizedImages.filter((ri) => ri !== null);
-});
-
-ipcMain.handle('show-save-dialog', async (event) => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openDirectory'],
+  
+  ipcMain.handle('save-file', async (event, pathh, directory) => {
+    try {
+      const fileData = await fs.promises.readFile(pathh);
+      const fileName = path.basename(pathh);
+      const filePath = path.join(directory, fileName);
+      await fs.promises.writeFile(filePath, fileData);
+      return true;
+    } catch (error) {
+      console.error(`Error saving file ${pathh}: ${error.message}`);
+      return false;
+    }
   });
-
-  if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0];
-  } else {
-    return null;
-  }
-});
-
-ipcMain.handle('save-file', async (event, pathh, directory) => {
-  try {
-    const fileData = await fs.promises.readFile(pathh);
-    const filePath = directory;
-    console.log(pathh)
-    console.log(directory)
-    await fs.promises.writeFile(filePath, fileData);
-    return true;
-  } catch (error) {
-    console.error(`Error saving file ${pathh}: ${error.message}`);
-    return false;
-  }
-});
+  
+  ipcMain.handle('show-save-dialog', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+      });
+      return result;
+    } catch (error) {
+      console.error(`Error showing save dialog: ${error.message}`);
+      return null;
+    }
+  });
+  
+  ipcMain.handle('download-images', async (event, images, directory) => {
+    try {
+      for (const image of images) {
+        const { filename, filepath } = image;
+  
+        const outputPath = path.join(directory, filename);
+  
+        await fs.promises.copyFile(filepath, outputPath);
+      }
+  
+      return true;
+    } catch (error) {
+      console.error(`Error downloading images: ${error.message}`);
+      return false;
+    }
+  });
