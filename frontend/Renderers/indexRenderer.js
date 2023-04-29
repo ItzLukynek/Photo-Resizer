@@ -3,75 +3,71 @@ const sizeInput = document.getElementById('sizeInput');
 const resizeButton = document.getElementById('resizeButton');
 const resultContainer = document.getElementById('resultContainer');
 const downloadAllButton = document.getElementById('downloadAllButton');
+const sizeSelect = document.querySelector('#sizeSelect');
+
+
+
+sizeSelect.addEventListener('change', () => {
+  sizeInput.value = sizeSelect.value;
+});
+
+let prevSelectedFiles = [];
+let resizedImages = [];
 
 fileInput.addEventListener('change', () => {
-  if (fileInput.files.length > 0) {
+  const newSelectedFiles = Array.from(fileInput.files).map(file => file.path);
+  const diff = newSelectedFiles.filter(x => !prevSelectedFiles.includes(x));
+  prevSelectedFiles = newSelectedFiles;
+  if (diff.length > 0) {
     resizeButton.disabled = false;
   } else {
     resizeButton.disabled = true;
   }
 });
-let resizedImages;
 
 resizeButton.addEventListener('click', async () => {
   resizeButton.disabled = true;
-  resultContainer.innerHTML = '';
-
-  const images = Array.from(fileInput.files).map(file => file.path);
   const quality = 100;
   const size = Number(sizeInput.value);
-
-  
-  resizedImages = await window.api.resizeImages(images, size, quality);
+  resultContainer.innerHTML = "";
+console.log(prevSelectedFiles)
+  resizedImages = await window.api.resizeImages(prevSelectedFiles, size, quality);
 
   if (resizedImages) {
     downloadAllButton.disabled = false;
-
+    let resulthtml = '';
     for (const resizedImage of resizedImages) {
       const { filename, filepath } = resizedImage;
-
-      const a = document.createElement('a');
-      a.href = filepath;
-      a.download = filename;
-
-      const imgElement = document.createElement('img');
-      imgElement.src = filepath;
-
-      const filenameElement = document.createElement('div');
-      filenameElement.textContent = filename;
-
-      resultContainer.appendChild(a);
-      a.appendChild(imgElement);
-      resultContainer.appendChild(filenameElement);
+      resulthtml += `<a href="${filepath}" download><div class="resized"><p>${filename}</p></div></a>`;
     }
+    resultContainer.innerHTML = resulthtml;
   } else {
-    const errorElement = document.createElement('div');
-    errorElement.textContent = 'Error resizing images.';
-    resultContainer.appendChild(errorElement);
+    let mess = await window.api.showMessage("Něco se posralo","Error","error")
   }
-
+  fileInput.value = '';
   resizeButton.disabled = false;
 });
 
 downloadAllButton.addEventListener('click', async () => {
   downloadAllButton.disabled = true;
-
   try {
     const result = await window.api.showSaveDialog({ properties: ['openDirectory'] });
-
     if (!result.canceled) {
       const outputDir = result.filePaths[0];
-
       const filenames = resizedImages.map((image) => image.filename);
+      
+      const dowland = await window.api.downloadFiles(filenames,outputDir)
 
-      for (const filename of filenames) {
-        const path = `public/resizedImages/${filename}`;
-        await window.api.saveFile(path, outputDir);
-      }
+      let mess = await window.api.showMessage("Obrázky byly staženy","Úspěch","info")
     }
+    resizedImages = [];
+    
+    
+
   } catch (error) {
     console.error(`Error saving files: ${error.message}`);
+    let mess = await window.api.showMessage("Obrázky se nepodařilo uložit","Error","error")
   }
-
   downloadAllButton.disabled = false;
 });
+

@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog} = require('electron')
 const path = require('path')
 const sharp = require('sharp')
 const fs = require('fs')
+const localShortcut = require('electron-localshortcut')
 
 let mainWindow
 
@@ -17,7 +18,12 @@ function createWindow() {
   })
 
   mainWindow.loadFile('frontend/view/index.html')
-  mainWindow.webContents.openDevTools()
+  mainWindow.maximize();
+  mainWindow.setMenu(null);
+
+  localShortcut.register(mainWindow, 'Ctrl+F12', () => {
+    mainWindow.webContents.openDevTools()
+  })
 }
 
 app.whenReady().then(() => {
@@ -31,11 +37,53 @@ app.whenReady().then(() => {
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit()
 })
-const resizedImages = [];
+
+async function saveFile(pathh,directory){
+  try {
+    const fileData = await fs.promises.readFile(pathh);
+    const fileName = path.basename(pathh);
+    const filePath = path.join(directory, fileName);
+    await fs.promises.writeFile(filePath, fileData);
+    return true;
+  } catch (error) {
+    console.error(`Error saving file ${pathh}: ${error.message}`);
+    return false;
+  }
+}
+
+async function showMessage(message, title, type) {
+  const options = {
+    type: type || 'info',
+    title: title || '',
+    message: message || '',
+    buttons: ['OK'],
+    defaultId: 0,
+    noLink: true,
+    normalizeAccessKeys: true,
+    cancelId: 0,
+    detail: '',
+  };
+
+  const response = await dialog.showMessageBox(options);
+
+  return response;
+}
+
+ipcMain.handle('show-message', async (event, message, title, type) => {
+  try {
+    const result = await showMessage(message, title, type)
+    return result;
+  } catch (error) {
+    console.error(`Error showing message: ${error.message}`);
+    return null;
+  }
+});
+
+
 ipcMain.handle('resize-images', async (event, images, size, quality) => {
     try {
-      
-  
+      const resizedImages = [];
+
       for (const imagePath of images) {
         const image = sharp(imagePath);
         const metadata = await image.metadata();
@@ -61,14 +109,10 @@ ipcMain.handle('resize-images', async (event, images, size, quality) => {
   
   ipcMain.handle('save-file', async (event, pathh, directory) => {
     try {
-      const fileData = await fs.promises.readFile(pathh);
-      const fileName = path.basename(pathh);
-      const filePath = path.join(directory, fileName);
-      await fs.promises.writeFile(filePath, fileData);
-      return true;
+      let save = await saveFile(pathh,directory);
+      return true
     } catch (error) {
-      console.error(`Error saving file ${pathh}: ${error.message}`);
-      return false;
+      console.error("error saving file" + error.message)
     }
   });
   
@@ -86,14 +130,22 @@ ipcMain.handle('resize-images', async (event, images, size, quality) => {
   
   ipcMain.handle('download-images', async (event, images, directory) => {
     try {
-      for (const image of images) {
-        const { filename, filepath } = image;
   
-        const outputPath = path.join(directory, filename);
-  
-        await fs.promises.copyFile(filepath, outputPath);
+      for (const filename of images) {
+        const path = `public/resizedImages/${filename}`;
+        const save = await saveFile(path,directory)
       }
+      
+      fs.readdir(path.join(__dirname,"public","resizedImages"), (err, files) => {
+        if (err) throw err;
   
+        for (const file of files) {
+          fs.unlink(path.join(__dirname,"public","resizedImages", file), err => {
+            if (err) throw err;
+          });
+        }
+      });
+      
       return true;
     } catch (error) {
       console.error(`Error downloading images: ${error.message}`);

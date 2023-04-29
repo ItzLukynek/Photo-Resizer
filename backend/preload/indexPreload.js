@@ -32,10 +32,19 @@ contextBridge.exposeInMainWorld('api', {
   },
   downloadFiles: async (filePaths, outputDir) => {
     try {
-      const result = await ipcRenderer.invoke('download-files', filePaths, outputDir);
+      const result = await ipcRenderer.invoke('download-images', filePaths, outputDir);
       return result;
     } catch (e) {
       console.error(e);
+      return false;
+    }
+  },
+  showMessage: async (message,title,type) =>{
+    try {
+      const result = await ipcRenderer.invoke("show-message",message,title,type)
+      return result;
+    } catch (error) {
+      console.error(e)
       return false;
     }
   }
